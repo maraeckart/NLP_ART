@@ -7,4 +7,7 @@ TEXT_COLUMNS = ["observation_1", "observation_2", "hypothesis_1", "hypothesis_2"
 
 def load_ds() -> DatasetDict:
     ds = load_dataset(DATASET_NAME)
+    ds["train"] = ds["train"].filter(
+        lambda ex: all(any(ch.isalnum() for ch in ex[c]) for c in ["hypothesis_1", "hypothesis_2"])
+    )
     return ds.map(lambda ex: {"target": ex["label"] - 1})
