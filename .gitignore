@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Large / generated files (not versioned)
+data/*
+!data/.gitkeep
+checkpoints/*
+!checkpoints/.gitkeep
+*.ckpt
+*.pt
+
+# Experiment tracking (local run files; results live on W&B)
+wandb/
+lightning_logs/
+
+# Secrets
+.env
+
+# macOS
+.DS_Store
