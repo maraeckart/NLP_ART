@@ -1,4 +1,3 @@
-"""Log every example of a split with the model's prediction as a W&B table (for error analysis)."""
 import torch
 
 COLUMNS = ["observation_1", "observation_2", "hypothesis_1", "hypothesis_2", "h1_only", "h2_only",
@@ -6,11 +5,7 @@ COLUMNS = ["observation_1", "observation_2", "hypothesis_1", "hypothesis_2", "h1
 
 
 def log_predictions(trainer, model, loader, split_ds, logger, key: str) -> None:
-    """Run the BEST checkpoint on `loader` (must not be shuffled) and log one table row per example.
-
-    `split_ds` is the matching Hugging Face split, so rows line up with the loader's order.
-    h1_only / h2_only: words that appear in only one hypothesis (shows what was swapped).
-    """
+    """Log predictions for a split to wandb.Table"""
     probs = torch.cat(trainer.predict(model, loader, ckpt_path="best"))  # [N, 2], via predict_step
     rows = []
     for ex, (p_h1, p_h2) in zip(split_ds, probs.tolist()):

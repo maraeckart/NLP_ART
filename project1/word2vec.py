@@ -1,7 +1,3 @@
-"""
-Each hypothesis is scored separately with the same classifier on [avg(O1); avg(O2); avg(h)]
-the two scores are compared with cross-entropy on targets (0 = h1, 1 = h2)
-"""
 import argparse
 import sys
 from pathlib import Path
@@ -10,19 +6,18 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import lightning as L
-import nltk
 import torch
 import wandb
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 from torch import nn
 from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 
-from src.data import load_ds
-from src.embeddings import load_word2vec
+from src.datamodule import ARTDataModule
+from src.models import Classifier
 from src.predictions import log_predictions
-from src.preprocessing import PAD, SPECIAL_TOKENS, UNK, build_embedding_matrix, build_vocab, preprocess, tokens_to_ids
+from src.preprocessing import PAD, SPECIAL_TOKENS, UNK, tokens_to_ids
 
 WANDB_ENTITY = "mara-eckart-nlp"
 WANDB_PROJECT = "art-p1"
@@ -76,71 +71,6 @@ def collate_fn(batch: list[dict]) -> dict[str, torch.Tensor]:
         out[key] = pad_sequence(sentences, batch_first=True, padding_value=PAD_ID)  # [B, L_max]
     out["target"] = torch.tensor([sample["target"] for sample in batch], dtype=torch.long)  # [B]
     return out
-
-
-class ARTDataModule(L.LightningDataModule):
-    """loading data -> preprocessing -> build vocab + embedding matrix from train -> datasets + dataloaders"""
-
-    def __init__(self, batch_size: int = 64, num_workers: int = 0, pin_memory: bool = False):
-        super().__init__()
-        self.batch_size = batch_size
-        self.num_workers = num_workers
-        self.pin_memory = pin_memory
-        self.datasets = {}
-
-    def setup(self, stage: str):
-        if self.datasets: 
-            return
-        nltk.download("punkt_tab", quiet=True)
-        self.ds = load_ds()  #raw text
-        tokenized = {
-            split: {column: [preprocess(text) for text in self.ds[split][column]] for column in FIELDS.values()}
-            for split in self.ds
-        }
-        wv = load_word2vec()
-        train_tokens = [tokens for column in FIELDS.values() for tokens in tokenized["train"][column]]
-        self.vocab = build_vocab(train_tokens, wv)  # train only: val/test words not in train -> <unk>
-        self.embedding_matrix = build_embedding_matrix(self.vocab, wv)  # [vocab size, 300], passed to the model
-        for split in self.ds:
-            self.datasets[split] = ARTDataset(tokenized[split], self.ds[split]["target"], self.vocab)
-
-    def _dataloader(self, split: str, shuffle: bool = False) -> DataLoader:
-        return DataLoader(
-            self.datasets[split],
-            batch_size=self.batch_size,
-            shuffle=shuffle,
-            collate_fn=collate_fn,
-            num_workers=self.num_workers,
-            pin_memory=self.pin_memory,
-            persistent_workers=self.num_workers > 0,
-        )
-
-    def train_dataloader(self):
-        return self._dataloader("train", shuffle=True)
-
-    def val_dataloader(self):
-        return self._dataloader("validation")
-
-    def test_dataloader(self):
-        return self._dataloader("test")
-
-
-class Classifier(nn.Module):
-    """2-layer classifier with ReLU"""
-
-    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, dropout: float):
-        super().__init__()
-        self.linear1 = nn.Linear(input_dim, hidden_dim)
-        self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(hidden_dim, output_dim)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: [B, input_dim] -> [B, output_dim] 
-        x = self.linear1(x)
-        x = self.relu(x)
-        x = self.dropout(x)
-        return self.linear2(x)
 
 
 class AvgClassifier(L.LightningModule):
@@ -199,8 +129,8 @@ class AvgClassifier(L.LightningModule):
 def train(args: argparse.Namespace):
     L.seed_everything(args.seed)  
 
-    dm = ARTDataModule(batch_size=args.batch_size, num_workers=args.num_workers,
-                       pin_memory=args.accelerator == "gpu")
+    dm = ARTDataModule(make_dataset=ARTDataset, collate_fn=collate_fn, batch_size=args.batch_size,
+                       num_workers=args.num_workers, pin_memory=args.accelerator == "gpu")
     dm.setup("fit") 
     model = AvgClassifier(dm.embedding_matrix, hidden_dim=args.hidden_dim, dropout=args.dropout,
                           lr=args.lr, weight_decay=args.weight_decay)
