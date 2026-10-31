@@ -1,6 +1,5 @@
 # stage 1: grid search
 #   wandb sweep --entity mara-eckart-nlp --project art-p1 project1/sweep_rnn_reg.yaml
-# On GPUHub:  - --accelerator=gpu - --num_workers=4
 program: project1/RNN.py
 method: grid
 metric:
@@ -13,6 +12,8 @@ parameters:
     values: [128, 256]
   lr:
     values: [0.0001, 0.001, 0.01]
+  batch_size:
+    value: 512  
   input_format:
     value: h_last
   patience:
@@ -24,3 +25,5 @@ command:
   - ${interpreter}
   - ${program}
   - ${args}
+  - --accelerator=gpu
+  - --num_workers=4
