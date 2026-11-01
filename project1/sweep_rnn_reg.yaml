@@ -15,7 +15,7 @@ parameters:
   batch_size:
     value: 512  
   input_format:
-    value: h_last
+    value: separate
   patience:
     value: 3
   max_epochs:
