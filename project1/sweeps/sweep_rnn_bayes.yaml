@@ -1,0 +1,32 @@
+# RNN stage 2: Bayesian optimization
+program: project1/RNN.py
+method: bayes
+metric:
+  name: best_val_acc
+  goal: maximize
+parameters:
+  lr:
+    distribution: log_uniform_values  
+    min: 0.003
+    max: 0.1
+  dropout:
+    distribution: uniform
+    min: 0.3
+    max: 0.6
+  hidden_dim:
+    values: [128, 256]
+  batch_size:
+    value: 512
+  input_format:
+    value: h_last
+  patience:
+    value: 3
+  max_epochs:
+    value: 60
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - ${args}
+  - --accelerator=gpu
+  - --num_workers=4

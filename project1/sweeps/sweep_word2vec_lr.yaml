@@ -1,0 +1,18 @@
+# 1.sweep
+program: project1/word2vec.py
+method: grid
+metric:
+  name: best_val_acc
+  goal: maximize
+parameters:
+  lr:
+    values: [0.0001, 0.001, 0.01]
+  patience:
+    values: [3, 6]
+  max_epochs:
+    value: 60
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - ${args}
