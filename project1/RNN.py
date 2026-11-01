@@ -22,8 +22,7 @@ from src.preprocessing import PAD, SEP, SPECIAL_TOKENS, tokens_to_ids
 
 WANDB_ENTITY = "mara-eckart-nlp"
 WANDB_PROJECT = "art-p1"
-MODEL_NAME = "lstm"
-CHECKPOINT_ROOT = ROOT / "checkpoints" / "project1" / MODEL_NAME
+CHECKPOINT_ROOT = ROOT / "checkpoints" / "project1"  # + /<cell>/<wandb run id>/best.ckpt
 
 NUM_LAYERS = 2
 
@@ -35,19 +34,21 @@ SEQUENCE_ORDERS = {
                ["observation_1", "observation_2", "hypothesis_2"]], 
     "separate": [["observation_1", "hypothesis_1", "observation_2"],  
                  ["observation_1", "hypothesis_2", "observation_2"]], 
-    "joint": [["observation_1", "hypothesis_1", "hypothesis_2", "observation_2"]],  
+    "joint": [["observation_1", "hypothesis_1", "hypothesis_2", "observation_2"]], 
+    "h_only": [["hypothesis_1"], ["hypothesis_2"]],
 }
 
 
 def parse_args() -> argparse.Namespace:
     """Hyperparameters"""
     p = argparse.ArgumentParser()
-    p.add_argument("--input_format", default="h_last", choices=["h_last", "separate", "joint"])
+    p.add_argument("--input_format", default="h_last", choices=list(SEQUENCE_ORDERS))
+    p.add_argument("--cell", default="lstm", choices=["lstm", "gru"])
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--batch_size", type=int, default=64)
-    p.add_argument("--hidden_dim", type=int, default=256, help="LSTM hidden size")
-    p.add_argument("--clf_hidden_dim", type=int, default=256, help="hidden size of the 2-layer classifier")
-    p.add_argument("--dropout", type=float, default=0.2, help="between the LSTM layers and in the classifier")
+    p.add_argument("--hidden_dim", type=int, default=256)
+    p.add_argument("--clf_hidden_dim", type=int, default=256)
+    p.add_argument("--dropout", type=float, default=0.2)
     p.add_argument("--bidirectional", action="store_true")
     p.add_argument("--weight_decay", type=float, default=0.01)
     p.add_argument("--grad_clip", type=float, default=1.0)
@@ -97,35 +98,37 @@ def collate_fn(batch: list[dict]) -> dict:
     return {"ids": ids, "lengths": lengths, "target": target}
 
 
-class LSTMClassifier(L.LightningModule):
-    """frozen word2vec -> 2-layer LSTM -> final hidden state -> 2-layer classifier."""
+class RNNClassifier(L.LightningModule):
+    """frozen word2vec -> 2-layer LSTM or GRU -> final hidden state -> 2-layer classifier."""
 
     def __init__(self, embedding_matrix, input_format: str, hidden_dim: int, clf_hidden_dim: int, dropout: float,
-                 bidirectional: bool, lr: float, weight_decay: float):
+                 bidirectional: bool, lr: float, weight_decay: float, cell: str = "lstm"):
         super().__init__()
         self.save_hyperparameters(ignore=["embedding_matrix"])  # matrix is saved as weights, not as config
         self.embedding = nn.Embedding.from_pretrained(
             torch.from_numpy(embedding_matrix), freeze=True, padding_idx=PAD_ID  # frozen
         )
-        self.lstm = nn.LSTM(
+        rnn_class = nn.LSTM if cell == "lstm" else nn.GRU  # same arguments for both
+        self.rnn = rnn_class(
             input_size=embedding_matrix.shape[1],  # 300
             hidden_size=hidden_dim,
             num_layers=NUM_LAYERS,  # 2
             batch_first=True,  # input [B, L, 300] instead of [L, B, 300]
             bidirectional=bidirectional,
-            dropout=dropout,  # applied between the 2 LSTM layers
+            dropout=dropout,  # applied between the 2 RNN layers
         )
-        lstm_out_dim = hidden_dim * (2 if bidirectional else 1)  
+        rnn_out_dim = hidden_dim * (2 if bidirectional else 1)  
         n_outputs = 2 if input_format == "joint" else 1 
-        self.classifier = Classifier(lstm_out_dim, clf_hidden_dim, n_outputs, dropout)
+        self.classifier = Classifier(rnn_out_dim, clf_hidden_dim, n_outputs, dropout)
         self.loss_fn = nn.CrossEntropyLoss()
 
     def encode(self, ids: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-        """[B, L] ids + [B] true lengths -> [B, H]: final hidden state of the top LSTM layer."""
+        """[B, L] ids + [B] true lengths -> [B, H]: final hidden state of the top RNN layer."""
         embedded = self.embedding(ids)  # [B, L, 300]
-        # packing: the LSTM stops at each sequence's true length, so <pad> never changes the final state
+        # packing: the RNN stops at each sequence's true length, so <pad> never changes the final state
         packed = pack_padded_sequence(embedded, lengths.cpu(), batch_first=True, enforce_sorted=False)
-        _, (h_n, _) = self.lstm(packed)  # h_n: [num_layers * num_directions, B, H]
+        _, state = self.rnn(packed)  # LSTM has cell state, GRU has no cell state
+        h_n = state[0] if isinstance(state, tuple) else state  # [num_layers * num_directions, B, H]
         if self.hparams.bidirectional:
             return torch.cat([h_n[-2], h_n[-1]], dim=-1)  # top layer: forward + backward -> [B, 2H]
         return h_n[-1]  # top layer -> [B, H]
@@ -167,18 +170,19 @@ def train(args: argparse.Namespace):
     dm = ARTDataModule(make_dataset=make_dataset, collate_fn=collate_fn, batch_size=args.batch_size,
                        num_workers=args.num_workers, pin_memory=args.accelerator == "gpu")
     dm.setup("fit")  # done manually: the model needs dm.embedding_matrix
-    model = LSTMClassifier(dm.embedding_matrix, input_format=args.input_format, hidden_dim=args.hidden_dim,
-                           clf_hidden_dim=args.clf_hidden_dim, dropout=args.dropout,
-                           bidirectional=args.bidirectional, lr=args.lr, weight_decay=args.weight_decay)
+    model = RNNClassifier(dm.embedding_matrix, input_format=args.input_format, hidden_dim=args.hidden_dim,
+                          clf_hidden_dim=args.clf_hidden_dim, dropout=args.dropout,
+                          bidirectional=args.bidirectional, lr=args.lr, weight_decay=args.weight_decay,
+                          cell=args.cell)
 
-    prefix = "bilstm" if args.bidirectional else "lstm"
+    prefix = ("bi" if args.bidirectional else "") + args.cell  # lstm, bilstm, gru, bigru
     run_name = (f"{prefix}-{args.input_format}_lr{args.lr:g}_h{args.hidden_dim}_c{args.clf_hidden_dim}"
                 f"_d{args.dropout:g}_p{args.patience}")
-    logger = WandbLogger(entity=WANDB_ENTITY, project=WANDB_PROJECT, group=MODEL_NAME, name=run_name)
+    logger = WandbLogger(entity=WANDB_ENTITY, project=WANDB_PROJECT, group=args.cell, name=run_name)
     logger.log_hyperparams(vars(args) | {"vocab_size": len(dm.vocab), "num_layers": NUM_LAYERS})
 
     # early stopping on val/loss, keep the epoch with the best val/acc
-    checkpoint = ModelCheckpoint(dirpath=CHECKPOINT_ROOT / logger.experiment.id, filename="best",
+    checkpoint = ModelCheckpoint(dirpath=CHECKPOINT_ROOT / args.cell / logger.experiment.id, filename="best",
                                  monitor="val/acc", mode="max", save_top_k=1)
     early_stopping = EarlyStopping(monitor="val/loss", mode="min", patience=args.patience)
 
