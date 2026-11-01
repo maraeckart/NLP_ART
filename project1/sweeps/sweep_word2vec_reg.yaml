@@ -1,5 +1,4 @@
 # 2. sweep
-
 program: project1/word2vec.py
 method: grid
 metric:
@@ -12,6 +11,8 @@ parameters:
     values: [128, 256, 512]
   lr:
     values: [0.0001, 0.001, 0.01]
+  batch_size:
+    value: 512 
   patience:
     value: 6
   max_epochs:
@@ -21,3 +22,5 @@ command:
   - ${interpreter}
   - ${program}
   - ${args}
+  - --accelerator=gpu
+  - --num_workers=4

@@ -11,8 +11,12 @@ parameters:
     values: [3, 6]
   max_epochs:
     value: 60
+  batch_size:
+    value: 512 
 command:
   - ${env}
   - ${interpreter}
   - ${program}
   - ${args}
+  - --accelerator=gpu
+  - --num_workers=4
