@@ -9,13 +9,14 @@ sys.path.insert(0, str(ROOT))
 
 import torch
 
-from RNN import ARTSequenceDataset, LSTMClassifier, collate_fn
+from RNN import ARTSequenceDataset, RNNClassifier, collate_fn
 from src.datamodule import ARTDataModule
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
-    p.add_argument("--input_format", default="h_last", choices=["h_last", "separate", "joint"])
+    p.add_argument("--input_format", default="h_last", choices=["h_last", "separate", "joint", "h_only"])
+    p.add_argument("--cell", default="lstm", choices=["lstm", "gru"])
     p.add_argument("--hidden_dim", type=int, default=256)
     p.add_argument("--clf_hidden_dim", type=int, default=256)
     p.add_argument("--bidirectional", action="store_true")
@@ -51,12 +52,12 @@ def main():
     limit = args.max_batch_size or len(train)
     print(f"worst case: {n_slots} sequence(s) per sample, each {max_len} tokens | upper limit {limit}")
 
-    model = LSTMClassifier(dm.embedding_matrix, input_format=args.input_format, hidden_dim=args.hidden_dim,
+    model = RNNClassifier(dm.embedding_matrix, input_format=args.input_format, hidden_dim=args.hidden_dim,
                            clf_hidden_dim=args.clf_hidden_dim, dropout=0.2, bidirectional=args.bidirectional,
-                           lr=1e-3, weight_decay=0.01).to(args.device).train()
+                           lr=1e-3, weight_decay=0.01, cell=args.cell).to(args.device).train()
     check = partial(fits, model, n_slots=n_slots, max_len=max_len, vocab_size=len(dm.vocab), device=args.device)
 
-    # 1. double the batch size until it does not fit (or the upper limit is reached)
+    # find the largest batch size that fits into memory
     good, bad, size = 0, None, 16
     while size < limit:
         if not check(size):
@@ -64,13 +65,13 @@ def main():
             break
         print(f"  {size:>6}: fits")
         good, size = size, size * 2
-    if bad is None:  # never failed below the limit: try the limit itself
+    if bad is None:  
         if check(limit):
             print(f"  {limit:>6}: fits -> the whole upper limit fits into memory")
             good = limit
         else:
             bad = limit
-    # 2. binary search between the last size that fit and the first that did not
+    # binary search between the last size that fit and the first that did not
     while bad is not None and bad - good > 1:
         mid = (good + bad) // 2
         if check(mid):

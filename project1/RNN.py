@@ -22,7 +22,7 @@ from src.preprocessing import PAD, SEP, SPECIAL_TOKENS, tokens_to_ids
 
 WANDB_ENTITY = "mara-eckart-nlp"
 WANDB_PROJECT = "art-p1"
-CHECKPOINT_ROOT = ROOT / "checkpoints" / "project1"  # + /<cell>/<wandb run id>/best.ckpt
+CHECKPOINT_ROOT = ROOT / "checkpoints" / "project1" 
 
 NUM_LAYERS = 2
 
@@ -35,7 +35,7 @@ SEQUENCE_ORDERS = {
     "separate": [["observation_1", "hypothesis_1", "observation_2"],  
                  ["observation_1", "hypothesis_2", "observation_2"]], 
     "joint": [["observation_1", "hypothesis_1", "hypothesis_2", "observation_2"]], 
-    "h_only": [["hypothesis_1"], ["hypothesis_2"]],
+    "h_only": [["hypothesis_1","hypothesis_2"]],
 }
 
 
