@@ -1,4 +1,4 @@
-# 1.sweep
+# 1.stage 
 program: project1/word2vec.py
 method: grid
 metric:
@@ -6,13 +6,13 @@ metric:
   goal: maximize
 parameters:
   lr:
-    values: [0.0001, 0.001, 0.01]
+    values: [0.001, 0.003, 0.01, 0.03]
   patience:
-    values: [3, 6]
+    value: 6
   max_epochs:
-    value: 60
+    value: 150
   batch_size:
-    value: 512 
+    value: 512
 command:
   - ${env}
   - ${interpreter}

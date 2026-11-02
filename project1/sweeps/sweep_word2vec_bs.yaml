@@ -1,0 +1,26 @@
+# word2vec at batch 512
+program: project1/word2vec.py
+method: grid
+metric:
+  name: best_val_acc
+  goal: maximize
+parameters:
+  lr:
+    values: [0.003, 0.01, 0.03]
+  batch_size:
+    value: 512
+  hidden_dim:
+    value: 512
+  dropout:
+    value: 0.2
+  patience:
+    value: 6
+  max_epochs:
+    value: 150
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - ${args}
+  - --accelerator=gpu
+  - --num_workers=4
