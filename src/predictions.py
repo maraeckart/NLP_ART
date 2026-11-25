@@ -6,7 +6,7 @@ COLUMNS = ["observation_1", "observation_2", "hypothesis_1", "hypothesis_2", "h1
 
 def log_predictions(trainer, model, loader, split_ds, logger, key: str) -> None:
     """Log predictions for a split to wandb.Table"""
-    probs = torch.cat(trainer.predict(model, loader, ckpt_path="best"))  # [N, 2], via predict_step
+    probs = torch.cat(trainer.predict(model, loader, ckpt_path="best")) 
     rows = []
     for ex, (p_h1, p_h2) in zip(split_ds, probs.tolist()):
         words_h1, words_h2 = set(ex["hypothesis_1"].lower().split()), set(ex["hypothesis_2"].lower().split())

@@ -4,9 +4,9 @@
 |---|---|
 | Word embeddings | 51–55% |
 | Word embeddings + RNN | 53–57% |
-| Transformer, randomly initialized | _TODO_ |
-| Transformer, pretrained | _TODO_ |
-| LLM | _TODO_ |
+| Transformer, randomly initialized | - |
+| Transformer, pretrained | - |
+| LLM | - |
 
 ## Word embeddings (word2vec)
 

@@ -1,4 +1,3 @@
-"""Model parts shared by both architectures."""
 import torch
 from torch import nn
 

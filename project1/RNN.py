@@ -138,8 +138,8 @@ class RNNClassifier(L.LightningModule):
         return torch.cat(scores, dim=-1)  # [B, 2] logits
 
     def _step(self, batch: dict, stage: str) -> torch.Tensor:
-        logits = self(batch)
-        loss = self.loss_fn(logits, batch["target"])
+        logits = self(batch) 
+        loss = self.loss_fn(logits, batch["target"]) #comparing the logits with the true target labels
         acc = (logits.argmax(dim=-1) == batch["target"]).float().mean()
         batch_size = len(batch["target"])
         self.log(f"{stage}/loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=batch_size)
@@ -158,7 +158,7 @@ class RNNClassifier(L.LightningModule):
     def predict_step(self, batch, batch_idx):
         return torch.softmax(self(batch), dim=-1)  # [B, 2] probabilities for h1, h2
 
-    def configure_optimizers(self):
+    def configure_optimizers(self): #only optimize the classifier parameters, not the frozen embedding matrix
         params = [p for p in self.parameters() if p.requires_grad] 
         return torch.optim.AdamW(params, lr=self.hparams.lr, weight_decay=self.hparams.weight_decay)
 

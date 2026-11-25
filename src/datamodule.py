@@ -15,7 +15,7 @@ class ARTDataModule(L.LightningDataModule):
     def __init__(self, make_dataset: Callable[..., Dataset], collate_fn: Callable, batch_size: int = 64,
                  num_workers: int = 0, pin_memory: bool = False):
         super().__init__()
-        self.make_dataset = make_dataset  # called as make_dataset(tokenized, targets, vocab)
+        self.make_dataset = make_dataset  
         self.collate_fn = collate_fn
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -23,7 +23,7 @@ class ARTDataModule(L.LightningDataModule):
         self.datasets = {}
 
     def setup(self, stage: str):
-        if self.datasets:  # already set up: Lightning calls setup again for trainer.test
+        if self.datasets:  
             return
         nltk.download("punkt_tab", quiet=True)
         self.ds = load_ds()  # raw text, kept for the prediction table
