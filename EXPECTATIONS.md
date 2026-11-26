@@ -49,7 +49,7 @@ Due to self-attention, the model can directly compare every hypothesis word with
 
 For this model I expect a bigger improvement. Here we can measure the impact of pretraining: the model has already been trained on large amounts of text (filling in masked words).
 This gives it contextual representations, meaning the representation of a word depends on the sentence around it.
-For example, it can recognize that "brighten up their moods" implies that the players were sad before, which is exactly the knowledge the soccer example needs.
+For example, it can recognize that "brighten up their moods" implies that the mood was changing, which is exactly the knowledge task needs.
 In the ART paper, a fine-tuned BERT reaches about 69%. Since I use a more recent model with an improved pretraining recipe, I expect slightly better results, above 70%.
 
 ## LLM
