@@ -17,7 +17,7 @@ INPUT_FORMATS = ["separate", "h_last", "h_only", "joint"]
 
 
 def build_inputs(ex: dict, input_format: str, sep: str) -> list[tuple[str, str | None]]:
-    """(text, optional second segment) per sequence: 2 sequences (one per hypothesis), or 1 for joint"""
+    """input formatting"""
     o1, o2 = clean_text(ex["observation_1"]), clean_text(ex["observation_2"])
     h1, h2 = clean_text(ex["hypothesis_1"]), clean_text(ex["hypothesis_2"])
     if input_format == "separate":
@@ -32,7 +32,7 @@ def build_inputs(ex: dict, input_format: str, sep: str) -> list[tuple[str, str |
 
 
 def encode_split(split_ds, tokenizer, input_format: str) -> list[dict]:
-    """Each example -> list of token id lists (2, or 1 for joint) + target"""
+    """list of token id lists + target"""
     sep = tokenizer.sep_token * 2  # "</s></s>", same separator RoBERTa uses between two segments
     samples = []
     for ex in split_ds:
@@ -43,7 +43,7 @@ def encode_split(split_ds, tokenizer, input_format: str) -> list[dict]:
 
 
 def collate(batch: list[dict], pad_id: int) -> dict:
-    """Pad all sequences of the batch to the longest one -> [B, n_seq, L] (n_seq = 2, or 1 for joint)"""
+    """Pad all sequences of the batch to the longest one"""
     seqs = [torch.tensor(ids) for ex in batch for ids in ex["input_ids"]]
     input_ids = pad_sequence(seqs, batch_first=True, padding_value=pad_id)
     attention_mask = (input_ids != pad_id).long()  # 1 = real token, 0 = padding
@@ -69,7 +69,7 @@ class TransformerDataModule(L.LightningDataModule):
     def setup(self, stage: str):
         if self.datasets:
             return
-        self.ds = load_ds()  # raw text, kept for the prediction table
+        self.ds = load_ds()  # raw text
         for split in self.ds:
             self.datasets[split] = encode_split(self.ds[split], self.tokenizer, self.input_format)
 
