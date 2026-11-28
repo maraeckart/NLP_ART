@@ -1,6 +1,7 @@
 torch>=2.4
 lightning>=2.4
 datasets>=3.0
+transformers>=4.45
 wandb>=0.18
 gensim>=4.3
 nltk>=3.9
